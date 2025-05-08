@@ -2,7 +2,10 @@ package routes
 
 import (
 	"time"
+	"github.com/g-sudarshan/url-shortner-in-go/database"
+	"os"
 )
+
 
 type request struct {
 	URL         string        `json:"url"`
@@ -29,6 +32,23 @@ func ShortenURL(c *fiber.Ctx) error {
 
 	// implement rate limiting
 
+	r2 := database.CreateClient(1)
+	defer r2.Close()
+
+	val, err := r2.Get(database.Ctx, c.IP()).Result()
+	if err == redis.Nil {
+		_ = r2.Set(database.Ctx, c.IP(), os.Getenv("API_QUOTA"), 30*60*time.Second).Err()
+	} else {
+		val, _:= r2.Get(database.Ctx, c.IP()).Result()
+		valInt, _ := strconv.Atoi(val)
+		if valInt <= 0 {
+			limit, _ := r2.TTL(database.Ctx, c.IP()).Result()
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error": "rate limit exceeded",
+				"rate_limit_reset": limit / time.Nanosecond / time.Second,
+			})
+	}
+}
 
 	// check if the input if an actual URL
 	if !goValidator.IsURL(body.URL){
@@ -46,4 +66,5 @@ func ShortenURL(c *fiber.Ctx) error {
 
 	// enforce https, SSL
 	body.URL = helpers.EnforceHTTP(body.URL)
+	r2.Decr(database.Ctx, c.IP())
 }
