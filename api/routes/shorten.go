@@ -1,9 +1,12 @@
 package routes
 
 import (
-	"time"
-	"github.com/g-sudarshan/url-shortner-in-go/database"
 	"os"
+	"time"
+
+	"github.com/g-sudarshan/url-shortner-in-go/database"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 
@@ -66,5 +69,35 @@ func ShortenURL(c *fiber.Ctx) error {
 
 	// enforce https, SSL
 	body.URL = helpers.EnforceHTTP(body.URL)
+
+	var id string
+	if body.CustomShort == "" {
+		id = uuid.New().String()[:6]
+	} else {
+		id = body.CustomShort
+	}
+
+	r := database.CreateClient(0)
+	defer r.Close()
+
+	val, _ := r.Get(database.Ctx, id).Result()
+	if val != "" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "short URL already exists",
+		})
+	}
+
+	if body.Expiry == 0 {
+		body.Expiry = 24 * time.Hour
+	}
+
+	err = r.Set(database.Ctx, id, body.URL, body.Expiry*3600*time.Second).Err()
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "cannot connect to DB",
+		})
+	}
+
 	r2.Decr(database.Ctx, c.IP())
 }
