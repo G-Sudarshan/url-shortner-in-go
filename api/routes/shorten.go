@@ -29,7 +29,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	body := new(request)
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "cannot parse JSON"
+			"error": "cannot parse JSON",
 		})
 	}
 
@@ -104,7 +104,7 @@ func ShortenURL(c *fiber.Ctx) error {
 		CustomShort:     "",
 		Expiry:          body.Expiry,
 		XRateRemaining:  10,
-		XRateLimitReset: 30
+		XRateLimitReset: 30,
 
 	r2.Decr(database.Ctx, c.IP())
 
